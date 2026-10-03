@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>2.5D Isometric Prototype</title>
+    <link rel="stylesheet" href="main-styles.css">
+</head>
+<body>
+    <div id="controls">
+        <div class="control-row">
+            <span class="label-text">Width (<span id="width-val">82</span>):</span>
+            <button class="btn-step" id="btn-tw-down">◀</button>
+            <input type="range" id="tile-width" min="32" max="128" value="82">
+            <button class="btn-step" id="btn-tw-up">▶</button>
+        </div>
+        <div class="control-row">
+            <span class="label-text">Height (<span id="height-val">27</span>):</span>
+            <button class="btn-step" id="btn-th-down">◀</button>
+            <input type="range" id="tile-height" min="16" max="64" value="27">
+            <button class="btn-step" id="btn-th-up">▶</button>
+        </div>
+        <div class="control-row">
+            <span class="label-text">Zoom (<span id="zoom-val">1.4</span>):</span>
+            <button class="btn-step" id="btn-z-down">◀</button>
+            <input type="range" id="zoom" min="0.5" max="3.0" step="0.1" value="1.4">
+            <button class="btn-step" id="btn-z-up">▶</button>
+        </div>
+        <div class="control-row">
+            <span class="label-text">Rotate (<span id="rot-val">0</span>°):</span>
+            <button class="btn-step" id="btn-r-down">◀</button>
+            <input type="range" id="rotation" min="0" max="270" step="90" value="0">
+            <button class="btn-step" id="btn-r-up">▶</button>
+        </div>
+        <button id="btn-undo">Undo Change</button>
+        <button id="btn-export">Export Settings</button>
+		<button id="btn-combine" style="display:none; background-color: #00aa44;">Combine Walls</button>        <textarea id="export-out" readonly rows="4" style="display:none;"></textarea>
+    </div>
+    <canvas id="game-canvas" width="800" height="600"></canvas>
+    <script src="game-script.js"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+/* Center the canvas element on the screen */
+body {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #1a1a1a;
+    overflow: hidden;
+}
+
+/* Define canvas boundary and background color */
+canvas {
+    background-color: #2a2a2a;
+    border: 2px solid #444;
+}
+
+/* Style the perspective control panel overlay */
+#controls {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: #333;
+    padding: 15px;
+    border: 1px solid #555;
+    color: #fff;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 320px;
+}
+
+/* Flex layout for aligned slider rows */
+.control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.label-text {
+    width: 100px;
+    font-size: 14px;
+}
+
+.control-row input[type="range"] {
+    flex-grow: 1;
+    margin: 0 8px;
+}
+
+/* Style interface buttons */
+#controls button {
+    background-color: #ff0044;
+    color: white;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* Style small stepper arrows */
+#controls button.btn-step {
+    background-color: #555;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+}
+
+#controls button.btn-step:hover {
+    background-color: #777;
+}
+
+/* Apply hover effects to buttons */
+#controls button:hover {
+    background-color: #cc0033;
+}
+
+/* Style the code export text area */
+#controls textarea {
+    background: #222;
+    color: #0f0;
+    border: 1px solid #555;
+    font-family: monospace;
+    resize: none;
+    margin-top: 5px;
+}
