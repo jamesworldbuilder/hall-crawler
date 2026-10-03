@@ -405,14 +405,13 @@ canvas.addEventListener('dblclick', (e) => {
                     selectedGroups = []
                 }
                 
-                // If a wall is already selected but the new click is geometrically invalid, drop the old selection
-                if (selectedGroups.length === 1 && !canCombineGroups(selectedGroups[0], group)) {
+                // Start fresh if two are already selected, or if the new click is geometrically invalid
+                if (selectedGroups.length >= 2) {
+                    selectedGroups = [group]
+                } else if (selectedGroups.length === 1 && !canCombineGroups(selectedGroups[0], group)) {
                     selectedGroups = [group]
                 } else {
                     selectedGroups.push(group)
-                    if (selectedGroups.length > 2) {
-                        selectedGroups.shift()
-                    }
                 }
             }
         } else {
@@ -506,8 +505,8 @@ window.addEventListener('mousemove', (e) => {
             if (id === 4) {
                 hoveredGroup = [{col: hovered.col, row: hovered.row, face: hovered.face}]
                 
-                // Flag error if hovering an obstacle while a wall is selected
-                if (selectedGroups.length === 1) {
+                // Flag error if hovering an obstacle while any number of walls are selected
+                if (selectedGroups.length > 0) {
                     const selId = levelMap[selectedGroups[0][0].row][selectedGroups[0][0].col]
                     if (selId === 1 || selId === 5) {
                         isHoverError = true
@@ -539,6 +538,15 @@ window.addEventListener('mousemove', (e) => {
                         }
                     } else if (selId === 4) {
                         // Flag error if hovering a wall while a shelf is selected
+                        isHoverError = true
+                    } else {
+                        isHoverError = false
+                        currentCursor = 'pointer'
+                    }
+                } else if (selectedGroups.length === 2) {
+                    // Flag error if hovering a third wall when two are already selected
+                    const isAlreadySelected = selectedGroups.some(g => g.some(t => t.col === hovered.col && t.row === hovered.row && t.face === hovered.face))
+                    if (!isAlreadySelected) {
                         isHoverError = true
                     } else {
                         isHoverError = false
