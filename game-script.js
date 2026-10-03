@@ -206,6 +206,29 @@ let isHoverError = false
 let isDraggingTile = false
 const obstacleMemory = {} // Remembers the original floor tile ID underneath moved obstacles
 
+// Helper to group contiguous obstacle tiles (ID 4) logically together
+function getObstacleGroup(col, row) {
+    const group = []
+    const visited = new Set()
+    const queue = [{c: col, r: row}]
+    
+    while (queue.length > 0) {
+        const curr = queue.shift()
+        const key = `${curr.c},${curr.r}`
+        if (visited.has(key)) continue
+        visited.add(key)
+        
+        if (curr.r >= 0 && curr.r < MAP_ROWS && curr.c >= 0 && curr.c < MAP_COLS && levelMap[curr.r][curr.c] === 4) {
+            group.push({col: curr.c, row: curr.r, face: 'top'})
+            queue.push({c: curr.c - 1, r: curr.r})
+            queue.push({c: curr.c + 1, r: curr.r})
+            queue.push({c: curr.c, r: curr.r - 1})
+            queue.push({c: curr.c, r: curr.r + 1})
+        }
+    }
+    return group
+}
+
 // Helper to group adjacent combined wall tiles (ID 5) into a single selectable unit
 function getCombinedGroup(col, row, face) {
     const group = []
@@ -390,10 +413,11 @@ canvas.addEventListener('dblclick', (e) => {
         const selIndex = selectedGroups.findIndex(g => g.some(t => t.col === clicked.col && t.row === clicked.row && (id === 4 || t.face === clicked.face)))
 
         if (id === 4) {
+            const group = getObstacleGroup(clicked.col, clicked.row)
             if (selIndex > -1) {
                 selectedGroups.splice(selIndex, 1)
             } else {
-                selectedGroups = [[clicked]]
+                selectedGroups = [group]
             }
         } else if ((id === 1 || id === 5) && clicked.face !== 'top') {
             const group = getCombinedGroup(clicked.col, clicked.row, clicked.face)
@@ -447,8 +471,8 @@ canvas.addEventListener('mousedown', (e) => {
     const pos = getMousePos(e)
     const clicked = getTileAtMouse(pos.x, pos.y)
 
-    // Check if the user is clicking exactly on a currently selected shelf tile
-    if (clicked && selectedGroups.length === 1 && selectedGroups[0][0].col === clicked.col && selectedGroups[0][0].row === clicked.row && levelMap[clicked.row][clicked.col] === 4) {
+    // Check if the user is clicking anywhere on a currently selected shelf tile footprint
+    if (clicked && selectedGroups.length === 1 && levelMap[clicked.row][clicked.col] === 4 && selectedGroups[0].some(t => t.col === clicked.col && t.row === clicked.row)) {
         isDraggingTile = true
         canvas.style.cursor = 'move'
     } else {
@@ -467,31 +491,97 @@ window.addEventListener('mousemove', (e) => {
 
     if (isDraggingTile && selectedGroups.length === 1) {
         currentCursor = 'move'
-        const selTile = selectedGroups[0][0]
-        if (hovered && (hovered.col !== selTile.col || hovered.row !== selTile.row)) {
-            // Block obstacle relocation if hovered coordinate matches the player coordinate
-            const isPlayerTile = (hovered.col === Math.floor(player.x) && hovered.row === Math.floor(player.y))
-            if (!isPlayerTile) {
-                const targetId = levelMap[hovered.row][hovered.col]
-                if (targetId === 2 || targetId === 0) {
-                    const oldKey = `${selTile.col},${selTile.row}`
-                    const newKey = `${hovered.col},${hovered.row}`
-
-                    levelMap[hovered.row][hovered.col] = 4
+        const selTiles = selectedGroups[0]
+        
+        // Validate if hovered is a valid floor drop target and isn't just the identical footprint
+        if (hovered && (hovered.col !== selTiles[0].col || hovered.row !== selTiles[0].row)) {
+            
+            // Helper to check for a combined wall group adjacent to hovered space
+            const checkWallGroup = (wc, wr) => {
+                if (wr >= 0 && wr < MAP_ROWS && wc >= 0 && wc < MAP_COLS && levelMap[wr][wc] === 5) {
+                    let group = [{col: wc, row: wr}]
+                    let c = wc - 1; while (c >= 0 && levelMap[wr][c] === 5) { group.push({col: c, row: wr}); c--; }
+                    c = wc + 1; while (c < MAP_COLS && levelMap[wr][c] === 5) { group.push({col: c, row: wr}); c++; }
+                    if (group.length > 1) return group
                     
-                    // Evaluate physical grid scale to determine default floor ID for initially placed obstacles
-                    const isHalfWidth = colWidths[selTile.col] < 1 || rowDepths[selTile.row] < 1
-                    const defaultFloorId = isHalfWidth ? 2 : 0
-                    
-                    // Restore the specific floor tile from memory or the evaluated default
-                    levelMap[selTile.row][selTile.col] = obstacleMemory[oldKey] !== undefined ? obstacleMemory[oldKey] : defaultFloorId
-                    
-                    // Memorize the floor tile covered by the relocated obstacle
-                    obstacleMemory[newKey] = targetId
-                    delete obstacleMemory[oldKey]
-
-                    selectedGroups[0][0] = {col: hovered.col, row: hovered.row, face: hovered.face}
+                    group = [{col: wc, row: wr}]
+                    let r = wr - 1; while (r >= 0 && levelMap[r][wc] === 5) { group.push({col: wc, row: r}); r--; }
+                    r = wr + 1; while (r < MAP_ROWS && levelMap[r][wc] === 5) { group.push({col: wc, row: r}); r++; }
+                    if (group.length > 1) return group
                 }
+                return null
+            }
+
+            // Determine intended footprint dynamically snapping to wall width
+            let newFootprint = [{col: hovered.col, row: hovered.row, face: 'top'}]
+            
+            let wallGroup = checkWallGroup(hovered.col, hovered.row - 1); let ox = 0, oy = 1;
+            if (!wallGroup) { wallGroup = checkWallGroup(hovered.col, hovered.row + 1); ox = 0; oy = -1; }
+            if (!wallGroup) { wallGroup = checkWallGroup(hovered.col - 1, hovered.row); ox = 1; oy = 0; }
+            if (!wallGroup) { wallGroup = checkWallGroup(hovered.col + 1, hovered.row); ox = -1; oy = 0; }
+
+            if (wallGroup) {
+                newFootprint = wallGroup.map(w => ({col: w.col + ox, row: w.row + oy, face: 'top'}))
+            }
+
+            // Validate the footprint safely avoiding player and solid walls
+            let isValid = true
+            for (let pt of newFootprint) {
+                if (pt.col < 0 || pt.col >= MAP_COLS || pt.row < 0 || pt.row >= MAP_ROWS) { isValid = false; break; }
+                const tid = levelMap[pt.row][pt.col]
+                const isSelf = selTiles.some(st => st.col === pt.col && st.row === pt.row)
+                if (tid !== 0 && tid !== 2 && !isSelf) { isValid = false; break; }
+                if (pt.col === Math.floor(player.x) && pt.row === Math.floor(player.y)) { isValid = false; break; }
+            }
+
+            // Fall back to 1x1 drop if the dynamic wall snap is invalid
+            if (!isValid && wallGroup) {
+                newFootprint = [{col: hovered.col, row: hovered.row, face: 'top'}]
+                isValid = true
+                const pt = newFootprint[0]
+                if (pt.col < 0 || pt.col >= MAP_COLS || pt.row < 0 || pt.row >= MAP_ROWS) { isValid = false; }
+                else {
+                    const tid = levelMap[pt.row][pt.col]
+                    const isSelf = selTiles.some(st => st.col === pt.col && st.row === pt.row)
+                    if (tid !== 0 && tid !== 2 && !isSelf) { isValid = false; }
+                    if (pt.col === Math.floor(player.x) && pt.row === Math.floor(player.y)) { isValid = false; }
+                }
+            }
+
+            const isSame = newFootprint.length === selTiles.length && newFootprint.every(nt => selTiles.some(st => st.col === nt.col && st.row === nt.row))
+
+            if (isValid && !isSame) {
+                const newMemory = {}
+                // Cache the floor tiles being overwritten
+                for (let pt of newFootprint) {
+                    const key = `${pt.col},${pt.row}`
+                    if (selTiles.some(st => st.col === pt.col && st.row === pt.row)) {
+                        newMemory[key] = obstacleMemory[key] !== undefined ? obstacleMemory[key] : (colWidths[pt.col] < 1 || rowDepths[pt.row] < 1 ? 2 : 0)
+                    } else {
+                        newMemory[key] = levelMap[pt.row][pt.col]
+                    }
+                }
+
+                // Restore the old floor tiles not contained in the new footprint
+                for (let st of selTiles) {
+                    if (!newFootprint.some(nt => nt.col === st.col && nt.row === st.row)) {
+                        const key = `${st.col},${st.row}`
+                        const defaultFloorId = (colWidths[st.col] < 1 || rowDepths[st.row] < 1) ? 2 : 0
+                        levelMap[st.row][st.col] = obstacleMemory[key] !== undefined ? obstacleMemory[key] : defaultFloorId
+                        delete obstacleMemory[key]
+                    }
+                }
+
+                // Commit the new obstacle footprint
+                for (let pt of newFootprint) {
+                    levelMap[pt.row][pt.col] = 4
+                }
+
+                for (let key in newMemory) {
+                    obstacleMemory[key] = newMemory[key]
+                }
+
+                selectedGroups[0] = newFootprint
             }
         }
     } else if (isDragging) {
@@ -503,7 +593,7 @@ window.addEventListener('mousemove', (e) => {
         if (hovered) {
             const id = levelMap[hovered.row][hovered.col]
             if (id === 4) {
-                hoveredGroup = [{col: hovered.col, row: hovered.row, face: hovered.face}]
+                hoveredGroup = getObstacleGroup(hovered.col, hovered.row)
                 
                 // Flag error if hovering an obstacle while any number of walls are selected
                 if (selectedGroups.length > 0) {
@@ -512,7 +602,7 @@ window.addEventListener('mousemove', (e) => {
                         isHoverError = true
                     } else {
                         isHoverError = false
-                        if (selId === 4 && selectedGroups[0][0].col === hovered.col && selectedGroups[0][0].row === hovered.row) {
+                        if (selId === 4 && selectedGroups[0].some(t => t.col === hovered.col && t.row === hovered.row)) {
                             currentCursor = 'move'
                         } else {
                             currentCursor = 'pointer'
