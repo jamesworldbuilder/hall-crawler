@@ -5,6 +5,8 @@ const ctx = canvas.getContext('2d')
 // Define mutable tile size mapping and zoom
 let TILE_SIZE = 82
 let CAMERA_PITCH = 20
+let WALL_HEIGHT = 2.0
+let OBS_HEIGHT = 1.5
 let ZOOM = 1.4
 let ROTATION = 0
 
@@ -61,11 +63,11 @@ const tileColors = {
 // Map tile integer IDs to specific elevation values
 const tileHeights = {
     0: 0,   // Floor
-    1: 2,   // Wall
+    1: WALL_HEIGHT,   // Wall
     2: 0,   // Hall side
     3: 0,   // Doorway
-    4: 1.5, // Shelf
-    5: 2    // Combined Wall
+    4: OBS_HEIGHT, // Shelf
+    5: WALL_HEIGHT    // Combined Wall
 }
 
 // Map tile integer IDs to boolean collision states
@@ -586,14 +588,29 @@ function project(accX, accY, elevation) {
     const rotX = cx * cos - cy * sin
     const rotY = cx * sin + cy * cos
     
-    const pitchRad = (typeof CAMERA_PITCH !== 'undefined' ? CAMERA_PITCH : 20) * Math.PI / 180
+    const safePitch = typeof CAMERA_PITCH !== 'undefined' ? CAMERA_PITCH : 20
+    const pitchRad = safePitch * Math.PI / 180
     const tileWidth = TILE_SIZE
     const tileHeight = TILE_SIZE * Math.sin(pitchRad)
-    const zHeight = TILE_SIZE * Math.cos(pitchRad)
     
-    // By omitting the center offset here, we perfectly anchor the level center to 0,0
-    const isoX = (rotX - rotY) * (tileWidth / 2)
-    const isoY = (rotX + rotY) * (tileHeight / 2) - (elevation * (zHeight / 2))
+    // Disconnect elevation height multiplier from camera pitch projection
+    const zHeight = TILE_SIZE
+    
+    let isoX, isoY
+    
+    if (safePitch > 40) {
+        // Render directly top-down 2D map view without isometric diamond distortion
+        isoX = rotX * TILE_SIZE
+        isoY = rotY * TILE_SIZE
+    } else if (safePitch === 0) {
+        // Render 2D side-scroller view flattening depth purely to the Z-buffer
+        isoX = rotX * TILE_SIZE
+        isoY = -(elevation * zHeight)
+    } else {
+        // By omitting the center offset here, we perfectly anchor the level center to 0,0
+        isoX = (rotX - rotY) * (tileWidth / 2)
+        isoY = (rotX + rotY) * (tileHeight / 2) - (elevation * (zHeight / 2))
+    }
     
     // Remove artificial elevation bias from topological depth sorting
     return { 
@@ -639,6 +656,29 @@ function drawTile(col, row, color, elevation) {
         getTileElevation(col, row + 1),
         getTileElevation(col - 1, row)
     ]
+
+    // Apply transparency if this elevated tile occludes the player
+    if (elevation > 0) {
+        const pAccX = getAccumulated(player.x, colWidths)
+        const pAccY = getAccumulated(player.y, rowDepths)
+        const pProj = project(pAccX, pAccY, 0)
+        
+        const tAccX = getAccumulated(col + 0.5, colWidths)
+        const tAccY = getAccumulated(row + 0.5, rowDepths)
+        const tProj = project(tAccX, tAccY, 0)
+        
+        if (tProj.depth > pProj.depth) {
+            const minX = Math.min(tops[0].x, tops[1].x, tops[2].x, tops[3].x, bots[0].x, bots[1].x, bots[2].x, bots[3].x)
+            const maxX = Math.max(tops[0].x, tops[1].x, tops[2].x, tops[3].x, bots[0].x, bots[1].x, bots[2].x, bots[3].x)
+            const minY = Math.min(tops[0].y, tops[1].y, tops[2].y, tops[3].y, bots[0].y, bots[1].y, bots[2].y, bots[3].y)
+            const maxY = Math.max(tops[0].y, tops[1].y, tops[2].y, tops[3].y, bots[0].y, bots[1].y, bots[2].y, bots[3].y)
+            
+            // Check if player bounding box visually overlaps the tile bounding box
+            if (pProj.x + 6 > minX && pProj.x - 6 < maxX && pProj.y > minY && pProj.y - 34 < maxY) {
+                ctx.globalAlpha = 0.4
+            }
+        }
+    }
 
     // Draw side faces dynamically checking camera angle visibility and adjacent connections
     for (let i = 0; i < 4; i++) {
@@ -739,6 +779,7 @@ function drawTile(col, row, color, elevation) {
     ctx.lineCap = 'round'
     ctx.stroke()
     ctx.lineWidth = 1 // Reset for other strokes
+    ctx.globalAlpha = 1.0 // Restore transparency state
 }
 
 // Draw player character mapped to isometric grid
@@ -752,20 +793,40 @@ function drawPlayer() {
     const pAccY = getAccumulated(player.y, rowDepths)
     const pos = project(pAccX, pAccY, elevation)
 
-    // Draw slimmer character body to prevent visual bleed over 2.5D grid lines
-    ctx.fillStyle = player.color
-    ctx.fillRect(pos.x - 6, pos.y - 34, 12, 34)
-    ctx.strokeStyle = '#222'
-    ctx.strokeRect(pos.x - 6, pos.y - 34, 12, 34)
+    if (typeof CAMERA_PITCH !== 'undefined' && CAMERA_PITCH > 40) {
+        // Draw top-down square representation
+        ctx.fillStyle = player.color
+        ctx.fillRect(pos.x - 6, pos.y - 6, 12, 12)
+        ctx.strokeStyle = '#222'
+        ctx.strokeRect(pos.x - 6, pos.y - 6, 12, 12)
+        
+        // Draw directional visor for top-down view
+        ctx.fillStyle = '#111'
+        if (player.facing === 'down') {
+            ctx.fillRect(pos.x - 4, pos.y + 2, 8, 4)
+        } else if (player.facing === 'up') {
+            ctx.fillRect(pos.x - 4, pos.y - 6, 8, 4)
+        } else if (player.facing === 'left') {
+            ctx.fillRect(pos.x - 6, pos.y - 4, 4, 8)
+        } else if (player.facing === 'right') {
+            ctx.fillRect(pos.x + 2, pos.y - 4, 4, 8)
+        }
+    } else {
+        // Draw slimmer character body to prevent visual bleed over 2.5D grid lines
+        ctx.fillStyle = player.color
+        ctx.fillRect(pos.x - 6, pos.y - 34, 12, 34)
+        ctx.strokeStyle = '#222'
+        ctx.strokeRect(pos.x - 6, pos.y - 34, 12, 34)
 
-    // Draw directional visor to indicate logical facing direction
-    ctx.fillStyle = '#111'
-    if (player.facing === 'down') {
-        ctx.fillRect(pos.x - 4, pos.y - 30, 8, 6)
-    } else if (player.facing === 'left') {
-        ctx.fillRect(pos.x - 6, pos.y - 30, 6, 6)
-    } else if (player.facing === 'right') {
-        ctx.fillRect(pos.x, pos.y - 30, 6, 6)
+        // Draw directional visor to indicate logical facing direction
+        ctx.fillStyle = '#111'
+        if (player.facing === 'down') {
+            ctx.fillRect(pos.x - 4, pos.y - 30, 8, 6)
+        } else if (player.facing === 'left') {
+            ctx.fillRect(pos.x - 6, pos.y - 30, 6, 6)
+        } else if (player.facing === 'right') {
+            ctx.fillRect(pos.x, pos.y - 30, 6, 6)
+        }
     }
 }
 
