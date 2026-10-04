@@ -15,102 +15,6 @@ let isDragging = false
 let dragStartX = 0
 let dragStartY = 0
 
-// Cache UI elements
-const widthSlider = document.getElementById('tile-width')
-const heightSlider = document.getElementById('tile-height')
-const zoomSlider = document.getElementById('zoom')
-const rotSlider = document.getElementById('rotation')
-const widthVal = document.getElementById('width-val')
-const heightVal = document.getElementById('height-val')
-const zoomVal = document.getElementById('zoom-val')
-const rotVal = document.getElementById('rot-val')
-const exportOut = document.getElementById('export-out')
-
-// Store history for undo functionality
-const historyStack = []
-
-// Push current state to history stack
-function saveState() {
-    historyStack.push({ w: TILE_WIDTH, h: TILE_HEIGHT, z: ZOOM, r: ROTATION })
-    if (historyStack.length > 100) historyStack.shift()
-}
-
-// Bind save state events to slider interactions
-function attachSave(element) {
-    element.addEventListener('mousedown', saveState)
-    element.addEventListener('touchstart', saveState)
-}
-attachSave(widthSlider)
-attachSave(heightSlider)
-attachSave(zoomSlider)
-attachSave(rotSlider)
-
-// Helper logic to step sliders programmatically with UI buttons
-function attachStepper(inputId, btnDownId, btnUpId, stepValue) {
-    const input = document.getElementById(inputId)
-    document.getElementById(btnDownId).addEventListener('click', () => {
-        saveState()
-        input.value = Math.max(parseFloat(input.min), parseFloat(input.value) - stepValue)
-        input.dispatchEvent(new Event('input'))
-    })
-    document.getElementById(btnUpId).addEventListener('click', () => {
-        saveState()
-        input.value = Math.min(parseFloat(input.max), parseFloat(input.value) + stepValue)
-        input.dispatchEvent(new Event('input'))
-    })
-}
-
-// Bind custom step increments to interface arrows (5 units for size, dynamic for rest)
-attachStepper('tile-width', 'btn-tw-down', 'btn-tw-up', 5)
-attachStepper('tile-height', 'btn-th-down', 'btn-th-up', 5)
-attachStepper('zoom', 'btn-z-down', 'btn-z-up', 0.1)
-attachStepper('rotation', 'btn-r-down', 'btn-r-up', 90)
-
-// Update values visually during drag and button steps
-widthSlider.addEventListener('input', (e) => {
-    TILE_WIDTH = parseInt(e.target.value)
-    widthVal.innerText = TILE_WIDTH
-})
-heightSlider.addEventListener('input', (e) => {
-    TILE_HEIGHT = parseInt(e.target.value)
-    heightVal.innerText = TILE_HEIGHT
-})
-zoomSlider.addEventListener('input', (e) => {
-    ZOOM = parseFloat(e.target.value)
-    zoomVal.innerText = ZOOM.toFixed(1)
-})
-rotSlider.addEventListener('input', (e) => {
-    ROTATION = parseInt(e.target.value)
-    rotVal.innerText = ROTATION
-})
-
-// Revert to last saved state
-document.getElementById('btn-undo').addEventListener('click', () => {
-    if (historyStack.length > 0) {
-        const lastState = historyStack.pop()
-        TILE_WIDTH = lastState.w
-        TILE_HEIGHT = lastState.h
-        ZOOM = lastState.z
-        ROTATION = lastState.r
-        
-        widthSlider.value = TILE_WIDTH
-        heightSlider.value = TILE_HEIGHT
-        zoomSlider.value = ZOOM
-        rotSlider.value = ROTATION
-        
-        widthVal.innerText = TILE_WIDTH
-        heightVal.innerText = TILE_HEIGHT
-        zoomVal.innerText = ZOOM.toFixed(1)
-        rotVal.innerText = ROTATION
-    }
-})
-
-// Export updated script variables
-document.getElementById('btn-export').addEventListener('click', () => {
-    exportOut.style.display = 'block'
-    exportOut.value = `let TILE_WIDTH = ${TILE_WIDTH}\nlet TILE_HEIGHT = ${TILE_HEIGHT}\nlet ZOOM = ${ZOOM}\nlet ROTATION = ${ROTATION}\nlet cameraX = ${cameraX}\nlet cameraY = ${cameraY}`
-})
-
 // Define integer-based tile map array representing the level layout
 const levelMap = [
     [1, 1, 1, 1, 1, 2, 0, 2],
@@ -869,13 +773,33 @@ function isWalkable(x, y) {
     return !tileCollisions[tileId]
 }
 
-// Evaluate collision bounding box to prevent visual sprite clipping into adjacent walls
+// Evaluate dynamic collision bounding box to allow close proximity to obstacles while preserving corner anti-clipping
 function checkCollision(x, y) {
-    const r = 0.2 // Logical padding radius to account for physical sprite width
-    return isWalkable(x - r, y - r) &&
-           isWalkable(x + r, y - r) &&
-           isWalkable(x - r, y + r) &&
-           isWalkable(x + r, y + r)
+    const wallR = 0.2  // Padded boundary to prevent z-fighting at tall structural wall corners
+    const obsR = 0.05  // Tight boundary to allow getting physically closer to obstacles (ID 4)
+
+    const points = [
+        {dx: -1, dy: -1}, {dx: 1, dy: -1},
+        {dx: -1, dy: 1}, {dx: 1, dy: 1}
+    ]
+
+    for (let p of points) {
+        // Evaluate the padded boundary against structural walls
+        let col = Math.floor(x + p.dx * wallR)
+        let row = Math.floor(y + p.dy * wallR)
+        if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) return false
+        let id = levelMap[row][col]
+        if (tileCollisions[id] && id !== 4) return false
+
+        // Evaluate the tight boundary against interactive obstacles
+        col = Math.floor(x + p.dx * obsR)
+        row = Math.floor(y + p.dy * obsR)
+        if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) return false
+        id = levelMap[row][col]
+        if (tileCollisions[id] && id === 4) return false
+    }
+    
+    return true
 }
 
 // Modify player coordinates based on active keys and padded collision boundaries
