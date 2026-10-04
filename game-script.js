@@ -782,6 +782,55 @@ function drawTile(col, row, color, elevation) {
     ctx.globalAlpha = 1.0 // Restore transparency state
 }
 
+// Render line of sight cone on the floor plane
+function drawCone() {
+    const pAccX = getAccumulated(player.x, colWidths)
+    const pAccY = getAccumulated(player.y, rowDepths)
+    const groundPos = project(pAccX, pAccY, 0)
+
+    // Calculate logical grid facing direction
+    let sx = 0
+    let sy = 0
+    if (player.facing === 'up') sy = -1
+    if (player.facing === 'down') sy = 1
+    if (player.facing === 'left') sx = -1
+    if (player.facing === 'right') sx = 1
+
+    const safeRot = typeof ROTATION !== 'undefined' ? ROTATION : 0
+    const rad = -safeRot * Math.PI / 180
+    const cos = Math.round(Math.cos(rad))
+    const sin = Math.round(Math.sin(rad))
+
+    const gx = sx * cos - sy * sin
+    const gy = sx * sin + sy * cos
+
+    // Calculate cone projection points directly in physical accumulated space for perfect symmetry
+    const coneDist = 3.0
+    const coneSpread = 2.5
+
+    const endAccX = pAccX + gx * coneDist
+    const endAccY = pAccY + gy * coneDist
+    const perpAccX = -gy * coneSpread
+    const perpAccY = gx * coneSpread
+
+    const accLeftX = endAccX + perpAccX
+    const accLeftY = endAccY + perpAccY
+    const accRightX = endAccX - perpAccX
+    const accRightY = endAccY - perpAccY
+
+    const pLeft = project(accLeftX, accLeftY, 0)
+    const pRight = project(accRightX, accRightY, 0)
+
+    // Render semi transparent line of sight cone onto floor plane
+    ctx.fillStyle = 'rgba(255, 255, 0, 0.25)'
+    ctx.beginPath()
+    ctx.moveTo(groundPos.x, groundPos.y)
+    ctx.lineTo(pLeft.x, pLeft.y)
+    ctx.lineTo(pRight.x, pRight.y)
+    ctx.closePath()
+    ctx.fill()
+}
+
 // Draw player character mapped to isometric grid
 function drawPlayer() {
     const tileX = Math.floor(player.x)
@@ -988,6 +1037,9 @@ function loop() {
             }
         }
     }
+
+    // Pass 3: Render line of sight cone last so it visibly overlays both floor and elevated structures
+    drawCone()
 
     ctx.restore()
     requestAnimationFrame(loop)
