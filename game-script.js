@@ -55,7 +55,7 @@ const tileColors = {
     0: '#666677', // Floor
     1: '#444455', // Wall
     2: '#554444', // Hall side
-    3: '#776655', // Doorway
+    3: '#666677', // Doorway
     4: '#885544', // Shelf
     5: '#444455'  // Combined Wall
 }
@@ -74,7 +74,7 @@ const tileHeights = {
 const tileCollisions = {
     0: false,
     1: true,
-    2: false,
+    2: true,
     3: false,
     4: true,
     5: true
@@ -841,8 +841,8 @@ function isWalkable(x, y) {
 
 // Evaluate dynamic collision bounding box to allow close proximity to obstacles while preserving corner anti-clipping
 function checkCollision(x, y) {
-    const wallR = 0.2  // Padded boundary to prevent z-fighting at tall structural wall corners
-    const obsR = 0.05  // Tight boundary to allow getting physically closer to obstacles (ID 4)
+    const wallR = 0.2  // Padded boundary to prevent z fighting at tall structural wall corners
+    const obsR = 0.05  // Tight boundary to allow getting physically closer to obstacles and doorways
 
     const points = [
         {dx: -1, dy: -1}, {dx: 1, dy: -1},
@@ -850,19 +850,43 @@ function checkCollision(x, y) {
     ]
 
     for (let p of points) {
-        // Evaluate the padded boundary against structural walls
+        // Evaluate padded boundary against structural walls excluding doorway sides
         let col = Math.floor(x + p.dx * wallR)
         let row = Math.floor(y + p.dy * wallR)
         if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) return false
         let id = levelMap[row][col]
-        if (tileCollisions[id] && id !== 4) return false
+        
+        if (tileCollisions[id] && id !== 4 && id !== 2) {
+            let isDoorwayWall = false
+            if (id === 1 || id === 5) {
+                if ((row > 0 && levelMap[row - 1][col] === 3) ||
+                    (row < MAP_ROWS - 1 && levelMap[row + 1][col] === 3) ||
+                    (col > 0 && levelMap[row][col - 1] === 3) ||
+                    (col < MAP_COLS - 1 && levelMap[row][col + 1] === 3)) {
+                    isDoorwayWall = true
+                }
+            }
+            if (!isDoorwayWall) return false
+        }
 
-        // Evaluate the tight boundary against interactive obstacles
+        // Evaluate tight boundary against obstacles and doorway sides
         col = Math.floor(x + p.dx * obsR)
         row = Math.floor(y + p.dy * obsR)
         if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) return false
         id = levelMap[row][col]
-        if (tileCollisions[id] && id === 4) return false
+        
+        if (tileCollisions[id]) {
+            let isDoorwayFloor = false
+            if (id === 2) {
+                if ((row > 0 && levelMap[row - 1][col] === 3) ||
+                    (row < MAP_ROWS - 1 && levelMap[row + 1][col] === 3) ||
+                    (col > 0 && levelMap[row][col - 1] === 3) ||
+                    (col < MAP_COLS - 1 && levelMap[row][col + 1] === 3)) {
+                    isDoorwayFloor = true
+                }
+            }
+            if (!isDoorwayFloor) return false
+        }
     }
     
     return true
