@@ -1,10 +1,10 @@
 // Cache UI elements
-const widthSlider = document.getElementById('tile-width')
-const heightSlider = document.getElementById('tile-height')
+const sizeSlider = document.getElementById('tile-size')
+const pitchSlider = document.getElementById('camera-pitch')
 const zoomSlider = document.getElementById('zoom')
 const rotSlider = document.getElementById('rotation')
-const widthVal = document.getElementById('width-val')
-const heightVal = document.getElementById('height-val')
+const sizeVal = document.getElementById('size-val')
+const pitchVal = document.getElementById('pitch-val')
 const zoomVal = document.getElementById('zoom-val')
 const rotVal = document.getElementById('rot-val')
 const exportOut = document.getElementById('export-out')
@@ -14,7 +14,7 @@ const historyStack = []
 
 // Push current state to history stack
 function saveState() {
-    historyStack.push({ w: TILE_WIDTH, h: TILE_HEIGHT, z: ZOOM, r: ROTATION })
+    historyStack.push({ s: TILE_SIZE, p: CAMERA_PITCH, z: ZOOM, r: ROTATION })
     if (historyStack.length > 100) historyStack.shift()
 }
 
@@ -23,8 +23,8 @@ function attachSave(element) {
     element.addEventListener('mousedown', saveState)
     element.addEventListener('touchstart', saveState)
 }
-attachSave(widthSlider)
-attachSave(heightSlider)
+attachSave(sizeSlider)
+attachSave(pitchSlider)
 attachSave(zoomSlider)
 attachSave(rotSlider)
 
@@ -48,19 +48,19 @@ function attachStepper(inputId, btnDownId, btnUpId, stepValue) {
 }
 
 // Bind custom step increments to interface arrows (5 units for size, dynamic for rest)
-attachStepper('tile-width', 'btn-tw-down', 'btn-tw-up', 5)
-attachStepper('tile-height', 'btn-th-down', 'btn-th-up', 5)
+attachStepper('tile-size', 'btn-ts-down', 'btn-ts-up', 5)
+attachStepper('camera-pitch', 'btn-p-down', 'btn-p-up', 10)
 attachStepper('zoom', 'btn-z-down', 'btn-z-up', 0.1)
 attachStepper('rotation', 'btn-r-down', 'btn-r-up', 90)
 
 // Update values visually during drag and button steps
-widthSlider.addEventListener('input', (e) => {
-    TILE_WIDTH = parseInt(e.target.value)
-    widthVal.innerText = TILE_WIDTH
+sizeSlider.addEventListener('input', (e) => {
+    TILE_SIZE = parseInt(e.target.value)
+    sizeVal.innerText = TILE_SIZE
 })
-heightSlider.addEventListener('input', (e) => {
-    TILE_HEIGHT = parseInt(e.target.value)
-    heightVal.innerText = TILE_HEIGHT
+pitchSlider.addEventListener('input', (e) => {
+    CAMERA_PITCH = parseInt(e.target.value)
+    pitchVal.innerText = CAMERA_PITCH
 })
 zoomSlider.addEventListener('input', (e) => {
     ZOOM = parseFloat(e.target.value)
@@ -75,18 +75,18 @@ rotSlider.addEventListener('input', (e) => {
 document.getElementById('btn-undo').addEventListener('click', () => {
     if (historyStack.length > 0) {
         const lastState = historyStack.pop()
-        TILE_WIDTH = lastState.w
-        TILE_HEIGHT = lastState.h
+        TILE_SIZE = lastState.s
+        CAMERA_PITCH = lastState.p
         ZOOM = lastState.z
         ROTATION = lastState.r
         
-        widthSlider.value = TILE_WIDTH
-        heightSlider.value = TILE_HEIGHT
+        sizeSlider.value = TILE_SIZE
+        pitchSlider.value = CAMERA_PITCH
         zoomSlider.value = ZOOM
         rotSlider.value = ROTATION
         
-        widthVal.innerText = TILE_WIDTH
-        heightVal.innerText = TILE_HEIGHT
+        sizeVal.innerText = TILE_SIZE
+        pitchVal.innerText = CAMERA_PITCH
         zoomVal.innerText = ZOOM.toFixed(1)
         rotVal.innerText = ROTATION
     }
@@ -95,5 +95,5 @@ document.getElementById('btn-undo').addEventListener('click', () => {
 // Export updated script variables
 document.getElementById('btn-export').addEventListener('click', () => {
     exportOut.style.display = 'block'
-    exportOut.value = `let TILE_WIDTH = ${TILE_WIDTH}\nlet TILE_HEIGHT = ${TILE_HEIGHT}\nlet ZOOM = ${ZOOM}\nlet ROTATION = ${ROTATION}\nlet cameraX = ${cameraX}\nlet cameraY = ${cameraY}`
+    exportOut.value = `let TILE_SIZE = ${TILE_SIZE}\nlet CAMERA_PITCH = ${CAMERA_PITCH}\nlet ZOOM = ${ZOOM}\nlet ROTATION = ${ROTATION}\nlet cameraX = ${cameraX}\nlet cameraY = ${cameraY}`
 })
