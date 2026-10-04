@@ -3,8 +3,8 @@ const canvas = document.getElementById('game-canvas')
 const ctx = canvas.getContext('2d')
 
 // Define mutable tile size mapping and zoom
-let TILE_WIDTH = 82
-let TILE_HEIGHT = 27
+let TILE_SIZE = 82
+let CAMERA_PITCH = 20
 let ZOOM = 1.4
 let ROTATION = 0
 
@@ -586,9 +586,14 @@ function project(accX, accY, elevation) {
     const rotX = cx * cos - cy * sin
     const rotY = cx * sin + cy * cos
     
+    const pitchRad = (typeof CAMERA_PITCH !== 'undefined' ? CAMERA_PITCH : 20) * Math.PI / 180
+    const tileWidth = TILE_SIZE
+    const tileHeight = TILE_SIZE * Math.sin(pitchRad)
+    const zHeight = TILE_SIZE * Math.cos(pitchRad)
+    
     // By omitting the center offset here, we perfectly anchor the level center to 0,0
-    const isoX = (rotX - rotY) * (TILE_WIDTH / 2)
-    const isoY = (rotX + rotY) * (TILE_HEIGHT / 2) - (elevation * (TILE_HEIGHT / 2))
+    const isoX = (rotX - rotY) * (tileWidth / 2)
+    const isoY = (rotX + rotY) * (tileHeight / 2) - (elevation * (zHeight / 2))
     
     // Remove artificial elevation bias from topological depth sorting
     return { 
